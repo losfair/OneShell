@@ -130,6 +130,8 @@ impl engine::Block {
         }
 
         let ee = cervus::engine::ExecutionEngine::new(m);
+        ee.prepare();
+
         let entry = ee.get_callable_0::<()>(&entry);
 
         let mut jit_info = BlockJitInfo {
