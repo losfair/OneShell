@@ -20,7 +20,8 @@ pub struct Block {
 #[derive(Deserialize)]
 pub enum Operation {
     Exec(ExecInfo),
-    ParallelExec(Vec<ExecInfo>)
+    ParallelExec(Vec<ExecInfo>),
+    BackgroundExec(ExecInfo)
 }
 
 #[derive(Deserialize)]
@@ -89,6 +90,9 @@ impl Engine {
                 },
                 &Operation::ParallelExec(ref info) => {
                     self.handle_parallel_exec(info.as_slice())?;
+                },
+                &Operation::BackgroundExec(ref info) => {
+                    self.handle_background_exec(info)?;
                 }
             }
         }
