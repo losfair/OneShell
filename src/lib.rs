@@ -1,7 +1,10 @@
+extern crate cervus;
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+
+mod engine;
+
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod engine_test;
