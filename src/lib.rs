@@ -5,6 +5,7 @@ extern crate serde_json;
 extern crate serde_derive;
 
 mod engine;
+mod jit;
 
 #[cfg(test)]
 mod engine_test;
