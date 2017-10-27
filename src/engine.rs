@@ -11,6 +11,7 @@ use cervus;
 use serde_json;
 use jit;
 
+// EngineHandle should never be moved as JIT-compiled code may hold reference to it.
 #[derive(Clone)]
 pub struct EngineHandle {
     inner: Rc<RefCell<Engine>>
@@ -33,7 +34,7 @@ impl From<Engine> for EngineHandle {
 
 #[derive(Default)]
 pub struct Engine {
-    last_exit_status: i32
+    pub last_exit_status: i32
 }
 
 #[derive(Deserialize)]
@@ -49,7 +50,8 @@ pub struct Block {
 pub enum Operation {
     Exec(ExecInfo),
     ParallelExec(Vec<ExecInfo>),
-    BackgroundExec(ExecInfo)
+    BackgroundExec(ExecInfo),
+    IfElse(Block, Block)
 }
 
 #[derive(Deserialize, Clone)]
@@ -122,17 +124,37 @@ impl EngineHandle {
             }
         } else {
             //println!("JIT MISS");
-            {
-                let mut eng = self.borrow_mut();
-                for op in blk.ops.iter() {
-                    eng.eval_op(op)?;
-                }
+            for op in blk.ops.iter_mut() {
+                self.eval_op(op)?;
             }
             blk.call_count_before_jit += 1;
             if blk.call_count_before_jit == 3 {
                 blk.build_jit(self);
             }
         }
+        Ok(())
+    }
+
+    pub fn eval_op(&self, op: &mut Operation) -> Result<(), Box<Error>> {
+        match op {
+            &mut Operation::Exec(ref info) => {
+                self.borrow_mut().handle_exec(info)?;
+            },
+            &mut Operation::ParallelExec(ref info) => {
+                self.borrow_mut().handle_parallel_exec(info.as_slice())?;
+            },
+            &mut Operation::BackgroundExec(ref info) => {
+                self.borrow_mut().handle_background_exec(info)?;
+            },
+            &mut Operation::IfElse(ref mut if_blk, ref mut else_blk) => {
+                if self.borrow().last_exit_status == 0 {
+                    self.eval_block(else_blk)?;
+                } else {
+                    self.eval_block(if_blk)?;
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -148,22 +170,6 @@ impl Engine {
 
     pub fn get_last_exit_status(&self) -> i32 {
         self.last_exit_status
-    }
-
-    pub fn eval_op(&mut self, op: &Operation) -> Result<(), Box<Error>> {
-        match op {
-            &Operation::Exec(ref info) => {
-                self.handle_exec(info)?;
-            },
-            &Operation::ParallelExec(ref info) => {
-                self.handle_parallel_exec(info.as_slice())?;
-            },
-            &Operation::BackgroundExec(ref info) => {
-                self.handle_background_exec(info)?;
-            }
-        }
-
-        Ok(())
     }
 
     pub fn handle_exec<T: Into<Command>>(&mut self, info: T) -> Result<(), Box<Error>> {

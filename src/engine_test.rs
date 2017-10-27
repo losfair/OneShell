@@ -32,6 +32,34 @@ fn test_engine_exec() {
                     "stdout": "Inherit"
                 }
             ]
+        },
+        {
+            "IfElse": [
+                {
+                    "ops": [
+                        {
+                            "Exec": {
+                                "command": ["echo", "Failed"],
+                                "env": {},
+                                "stdin": "Inherit",
+                                "stdout": "Inherit"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "ops": [
+                        {
+                            "Exec": {
+                                "command": ["echo", "OK"],
+                                "env": {},
+                                "stdin": "Inherit",
+                                "stdout": "Inherit"
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }
