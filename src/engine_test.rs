@@ -15,7 +15,14 @@ fn test_engine_exec() {
         },
         {
             "Exec": {
-                "command": ["ls", "/"],
+                "command": [
+                    {
+                        "Plain": "ls"
+                    },
+                    {
+                        "Plain": "/"
+                    }
+                ],
                 "env": {},
                 "stdin": "Inherit",
                 "stdout": "Inherit"
@@ -24,7 +31,14 @@ fn test_engine_exec() {
         {
             "ParallelExec": [
                 {
-                    "command": ["ls", "/"],
+                    "command": [
+                        {
+                            "Plain": "ls"
+                        },
+                        {
+                            "Plain": "/"
+                        }
+                    ],
                     "env": {},
                     "stdin": "Inherit",
                     "stdout": {
@@ -32,7 +46,14 @@ fn test_engine_exec() {
                     }
                 },
                 {
-                    "command": ["grep", "etc"],
+                    "command": [
+                        {
+                            "Plain": "grep"
+                        },
+                        {
+                            "Plain": "etc"
+                        }
+                    ],
                     "env": {},
                     "stdin": {
                         "Pipe": "p1"
@@ -46,7 +67,14 @@ fn test_engine_exec() {
                 "ops": [
                     {
                         "Exec": {
-                            "command": ["echo", "In loop"],
+                            "command": [
+                                {
+                                    "Plain": "echo"
+                                },
+                                {
+                                    "GlobalVariable": "var1"
+                                }
+                            ],
                             "env": {},
                             "stdin": "Inherit",
                             "stdout": "Inherit"
@@ -62,7 +90,14 @@ fn test_engine_exec() {
                     "ops": [
                         {
                             "Exec": {
-                                "command": ["echo", "Failed"],
+                                "command": [
+                                    {
+                                        "Plain": "echo"
+                                    },
+                                    {
+                                        "Plain": "Failed"
+                                    }
+                                ],
                                 "env": {},
                                 "stdin": "Inherit",
                                 "stdout": "Inherit"
@@ -74,7 +109,14 @@ fn test_engine_exec() {
                     "ops": [
                         {
                             "Exec": {
-                                "command": ["echo", "OK"],
+                                "command": [
+                                    {
+                                        "Plain": "echo"
+                                    },
+                                    {
+                                        "Plain": "OK"
+                                    }
+                                ],
                                 "env": {},
                                 "stdin": "Inherit",
                                 "stdout": "Inherit"

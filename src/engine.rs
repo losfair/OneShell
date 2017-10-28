@@ -80,21 +80,61 @@ pub enum Operation {
 
 #[derive(Deserialize, Clone)]
 pub struct ExecInfo {
-    command: Vec<String>,
+    command: Vec<StringSource>,
     env: HashMap<String, String>,
     stdin: StdioConfig,
     stdout: StdioConfig
 }
 
-impl<'a> Into<Command> for &'a ExecInfo {
-    fn into(self) -> Command {
-        build_command(self)
+#[derive(Deserialize, Clone)]
+pub enum StringSource {
+    Plain(String),
+    GlobalVariable(String),
+    LocalVariable(String)
+}
+
+impl StringSource {
+    pub fn fetch(&self, eng: &Engine) -> Option<String> {
+        match *self {
+            StringSource::Plain(ref v) => Some(v.clone()),
+            StringSource::GlobalVariable(ref name) => match eng.vars.get(name) {
+                Some(v) => Some(v.to_string()),
+                None => None
+            },
+            StringSource::LocalVariable(ref name) => match eng.call_stack.last().unwrap().vars.get(name) {
+                Some(v) => Some(v.to_string()),
+                None => None
+            }
+        }
     }
 }
 
-impl Into<Command> for ExecInfo {
-    fn into(self) -> Command {
-        build_command(&self)
+impl ExecInfo {
+    pub fn build(&self, eng: &Engine) -> Result<Command, Box<Error>> {
+        let mut cmd = Command::new(match self.command[0].fetch(eng) {
+            Some(v) => v,
+            None => return Err("Invalid first argument".into())
+        });
+        for i in 1..self.command.len() {
+            cmd.arg(match self.command[i].fetch(eng) {
+                Some(v) => v,
+                None => return Err("Invalid argument found in parameter list".into())
+            });
+        }
+
+        cmd.envs(&self.env);
+
+        cmd.stdin(match self.stdin {
+            StdioConfig::Inherit => Stdio::inherit(),
+            StdioConfig::Pipe(_) => Stdio::piped()
+        });
+
+        cmd.stdout(match self.stdout {
+            StdioConfig::Inherit => Stdio::inherit(),
+            StdioConfig::Pipe(_) => Stdio::piped()
+        });
+
+        Ok(cmd)
     }
 }
 
@@ -239,8 +279,8 @@ impl Engine {
         self.last_exit_status
     }
 
-    pub fn handle_exec<T: Into<Command>>(&mut self, info: T) -> Result<(), Box<Error>> {
-        let mut cmd = info.into();
+    pub fn handle_exec(&mut self, info: &ExecInfo) -> Result<(), Box<Error>> {
+        let mut cmd = info.build(self)?;
 
         let mut child = cmd.spawn()?;
         let exit_status = child.wait()?;
@@ -250,8 +290,8 @@ impl Engine {
         Ok(())
     }
 
-    pub fn handle_background_exec<T: Into<Command>>(&self, info: T) -> Result<(), Box<Error>> {
-        let mut cmd = info.into();
+    pub fn handle_background_exec(&self, info: &ExecInfo) -> Result<(), Box<Error>> {
+        let mut cmd = info.build(self)?;
         let mut child = cmd.spawn()?;
 
         std::thread::spawn(move || {
@@ -269,7 +309,7 @@ impl Engine {
 
         let mut children = Vec::new();
         for item in info.iter() {
-            let mut cmd: Command = item.into();
+            let mut cmd: Command = item.build(self)?;
             let mut child = cmd.spawn()?;
 
             if let &StdioConfig::Pipe(ref name) = &item.stdout {
@@ -309,25 +349,4 @@ impl Engine {
 
         Ok(())
     }
-}
-
-pub fn build_command(info: &ExecInfo) -> Command {
-    let mut cmd = Command::new(info.command[0].as_str());
-    for i in 1..info.command.len() {
-        cmd.arg(info.command[i].as_str());
-    }
-
-    cmd.envs(&info.env);
-
-    cmd.stdin(match info.stdin {
-        StdioConfig::Inherit => Stdio::inherit(),
-        StdioConfig::Pipe(_) => Stdio::piped()
-    });
-
-    cmd.stdout(match info.stdout {
-        StdioConfig::Inherit => Stdio::inherit(),
-        StdioConfig::Pipe(_) => Stdio::piped()
-    });
-
-    cmd
 }
