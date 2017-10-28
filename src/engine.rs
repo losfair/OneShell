@@ -10,14 +10,25 @@ use std::ops::Deref;
 use cervus;
 use serde_json;
 use jit;
+use signals;
 
 // EngineHandle should never be moved as JIT-compiled code may hold reference to it.
-#[derive(Clone)]
 pub struct EngineHandle {
+    inner: Box<EngineHandleImpl>
+}
+
+pub struct EngineHandleImpl {
     inner: Rc<RefCell<Engine>>
 }
 
 impl Deref for EngineHandle {
+    type Target = EngineHandleImpl;
+    fn deref(&self) -> &Self::Target {
+        &*self.inner
+    }
+}
+
+impl Deref for EngineHandleImpl {
     type Target = RefCell<Engine>;
     fn deref(&self) -> &RefCell<Engine> {
         &*self.inner
@@ -27,7 +38,9 @@ impl Deref for EngineHandle {
 impl From<Engine> for EngineHandle {
     fn from(other: Engine) -> EngineHandle {
         EngineHandle {
-            inner: Rc::new(RefCell::new(other))
+            inner: Box::new(EngineHandleImpl {
+                inner: Rc::new(RefCell::new(other))
+            })
         }
     }
 }
@@ -51,7 +64,9 @@ pub enum Operation {
     Exec(ExecInfo),
     ParallelExec(Vec<ExecInfo>),
     BackgroundExec(ExecInfo),
-    IfElse(Block, Block)
+    IfElse(Block, Block),
+    Loop(Block),
+    Break
 }
 
 #[derive(Deserialize, Clone)]
@@ -112,16 +127,21 @@ impl From<Box<Error>> for ExecError {
 }
 
 impl EngineHandle {
+    pub fn impl_ref(&self) -> &EngineHandleImpl {
+        &*self.inner
+    }
+}
+
+impl EngineHandleImpl {
+    pub fn engine_rc(&self) -> Rc<RefCell<Engine>> {
+        self.inner.clone()
+    }
+
     pub fn eval_block(&self, blk: &mut Block) -> Result<(), Box<Error>> {
         if blk.jit_info.is_some() {
             //println!("JIT HIT");
             let entry = blk.jit_info.as_ref().unwrap().entry;
-            match std::panic::catch_unwind(|| {
-                entry();
-            }) {
-                Ok(_) => {},
-                Err(_) => return Err("Error in JIT-compiled code".into())
-            }
+            entry();
         } else {
             //println!("JIT MISS");
             for op in blk.ops.iter_mut() {
@@ -129,7 +149,7 @@ impl EngineHandle {
             }
             blk.call_count_before_jit += 1;
             if blk.call_count_before_jit == 3 {
-                blk.build_jit(self);
+                blk.build_jit(self)?;
             }
         }
         Ok(())
@@ -152,6 +172,25 @@ impl EngineHandle {
                 } else {
                     self.eval_block(if_blk)?;
                 }
+            },
+            &mut Operation::Loop(ref mut blk) => {
+                loop {
+                    match self.eval_block(blk) {
+                        Ok(_) => {},
+                        Err(e) => {
+                            if let Some(_) = e.downcast_ref::<signals::Break>() {
+                                break;
+                            }
+                            if let Some(_) = e.downcast_ref::<signals::Continue>() {
+                                continue;
+                            }
+                            return Err(e);
+                        }
+                    }
+                }
+            },
+            &mut Operation::Break => {
+                return Err(Box::new(signals::Break::new()));
             }
         }
 

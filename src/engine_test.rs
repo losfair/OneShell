@@ -34,6 +34,21 @@ fn test_engine_exec() {
             ]
         },
         {
+            "Loop": {
+                "ops": [
+                    {
+                        "Exec": {
+                            "command": ["echo", "In loop"],
+                            "env": {},
+                            "stdin": "Inherit",
+                            "stdout": "Inherit"
+                        }
+                    },
+                    "Break"
+                ]
+            }
+        },
+        {
             "IfElse": [
                 {
                     "ops": [
