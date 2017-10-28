@@ -193,11 +193,11 @@ impl EngineHandleImpl {
             entry()
         } else {
             //println!("JIT MISS");
-            let mut ret: i32 = 0;
+            let mut ret: i32 = signals::OK;
 
             for op in blk.ops.iter_mut() {
                 ret = self.eval_op(op);
-                if ret != 0 {
+                if ret != signals::OK {
                     break;
                 }
             }
@@ -213,15 +213,15 @@ impl EngineHandleImpl {
         match op {
             &mut Operation::Exec(ref info) => {
                 self.borrow_mut().handle_exec(info).unwrap();
-                0
+                signals::OK
             },
             &mut Operation::ParallelExec(ref info) => {
                 self.borrow_mut().handle_parallel_exec(info.as_slice()).unwrap();
-                0
+                signals::OK
             },
             &mut Operation::BackgroundExec(ref info) => {
                 self.borrow_mut().handle_background_exec(info).unwrap();
-                0
+                signals::OK
             },
             &mut Operation::IfElse(ref mut if_blk, ref mut else_blk) => {
                 if self.borrow().last_exit_status == 0 {
@@ -233,34 +233,34 @@ impl EngineHandleImpl {
             &mut Operation::Loop(ref mut blk) => {
                 loop {
                     let ret = self.eval_block(blk);
-                    if ret == 0 {
+                    if ret == signals::OK {
                         continue;
-                    } else if ret == 1 {
+                    } else if ret == signals::BREAK {
                         break;
-                    } else if ret == 2 {
+                    } else if ret == signals::CONTINUE {
                         continue;
                     } else {
                         panic!("Unexpected control status: {}", ret);
                     }
                 }
-                0
+                signals::OK
             },
             &mut Operation::Break => {
-                1
+                signals::BREAK
             },
             &mut Operation::AssignGlobal(ref name, ref val) => {
                 self.borrow_mut().vars.insert(
                     name.clone(),
                     var::Variable::from_value(val.clone())
                 );
-                0
+                signals::OK
             },
             &mut Operation::AssignLocal(ref name, ref val) => {
                 self.borrow_mut().call_stack.last_mut().unwrap().vars.insert(
                     name.clone(),
                     var::Variable::from_value(val.clone())
                 );
-                0
+                signals::OK
             }
         }
     }

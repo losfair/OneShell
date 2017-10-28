@@ -102,7 +102,7 @@ impl engine::Block {
                     )
                 )));
 
-            let mut fn_control_status: i32 = 0;
+            let mut fn_control_status: i32 = signals::OK;
 
             for op in self.ops.iter_mut() {
                 if new_bb.is_some() {
@@ -221,7 +221,7 @@ impl engine::Block {
                         ));
                     },
                     &mut Operation::Break => {
-                        fn_control_status = 1;
+                        fn_control_status = signals::BREAK;
                         break;
                     },
                     &mut Operation::AssignGlobal(ref name, ref val) => {
@@ -329,7 +329,7 @@ fn build_block_call<'a>(
     if is_loop {
         builder.append(
             Action::ConditionalBranch(
-                builder.append(Action::IntEqual(ret.clone(), (1 as i32).into())), // break
+                builder.append(Action::IntEqual(ret.clone(), (signals::BREAK as i32).into())), // break
                 &cont_bb,
                 &bb
             )
@@ -342,7 +342,7 @@ fn build_block_call<'a>(
 
         builder.append(
             Action::ConditionalBranch(
-                builder.append(Action::IntEqual(ret.clone(), (0 as i32).into())), // no control operation
+                builder.append(Action::IntEqual(ret.clone(), (signals::OK as i32).into())), // no control operation
                 &cont_bb,
                 &ret_bb
             )
