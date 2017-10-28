@@ -83,6 +83,6 @@ fn test_engine_exec() {
     let mut eng: engine::EngineHandle = engine::Engine::new().into();
     let mut blk = eng.borrow_mut().load_block(ast).unwrap();
     for i in 0..5 {
-        eng.eval_block(&mut blk).unwrap();
+        eng.eval_block(&mut blk);
     }
 }

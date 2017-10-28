@@ -13,7 +13,7 @@ use signals;
 pub struct BlockJitInfo {
     resources: Vec<Box<Any>>,
     ee: cervus::engine::ExecutionEngine,
-    pub entry: extern fn ()
+    pub entry: extern fn () -> i32
 }
 
 impl engine::Block {
@@ -27,13 +27,11 @@ impl engine::Block {
             let entry_fn = cervus::engine::Function::new(
                 &m,
                 "entry",
-                ValueType::Void,
+                ValueType::Int32,
                 vec![]
             );
             let mut bb = cervus::engine::BasicBlock::new(&entry_fn, "");
             let mut new_bb: Option<cervus::engine::BasicBlock> = None;
-
-            
 
             let handle_exec_wrapper_fn = cervus::engine::Value::from(handle_exec_wrapper as *const c_void as u64)
                 .const_int_to_ptr(ValueType::Pointer(Box::new(
@@ -71,17 +69,6 @@ impl engine::Block {
             let call_block_wrapper_fn = cervus::engine::Value::from(call_block_wrapper as *const c_void as u64)
                 .const_int_to_ptr(ValueType::Pointer(Box::new(
                     ValueType::Function(
-                        Box::new(ValueType::Void),
-                        vec![
-                            ValueType::Pointer(Box::new(ValueType::Void)),
-                            ValueType::Pointer(Box::new(ValueType::Void))
-                        ]
-                    )
-                )));
-
-            let call_block_with_control_wrapper_fn = cervus::engine::Value::from(call_block_with_control_wrapper as *const c_void as u64)
-                .const_int_to_ptr(ValueType::Pointer(Box::new(
-                    ValueType::Function(
                         Box::new(ValueType::Int32),
                         vec![
                             ValueType::Pointer(Box::new(ValueType::Void)),
@@ -90,15 +77,9 @@ impl engine::Block {
                     )
                 )));
 
-            let break_wrapper_fn = cervus::engine::Value::from(break_wrapper as *const c_void as u64)
-                .const_int_to_ptr(ValueType::Pointer(Box::new(
-                    ValueType::Function(
-                        Box::new(ValueType::Void),
-                        vec![]
-                    )
-                )));
-
             resources.push(Box::new(eh.engine_rc()) as Box<Any>);
+
+            let mut fn_control_status: i32 = 0;
 
             for op in self.ops.iter_mut() {
                 if new_bb.is_some() {
@@ -187,83 +168,44 @@ impl engine::Block {
 
                         {
                             let if_builder = cervus::engine::Builder::new(&if_bb);
-
-                            if_builder.append(
-                                Action::Call(
-                                    call_block_wrapper_fn.clone(),
-                                    vec![
-                                        cervus::engine::Value::from(eh as *const engine::EngineHandleImpl as u64).const_int_to_ptr(
-                                            ValueType::Pointer(Box::new(ValueType::Void))
-                                        ),
-                                        cervus::engine::Value::from(if_blk as *const engine::Block as u64).const_int_to_ptr(
-                                            ValueType::Pointer(Box::new(ValueType::Void))
-                                        ),
-                                    ]
-                                )
+                            let cont_1 = build_block_call(
+                                eh,
+                                &entry_fn,
+                                &if_builder,
+                                if_blk,
+                                false
                             );
-                            if_builder.append(Action::Branch(&cont_bb));
+                            let c1_builder = cervus::engine::Builder::new(&cont_1);
+                            c1_builder.append(Action::Branch(&cont_bb));
                         }
 
                         {
                             let else_builder = cervus::engine::Builder::new(&else_bb);
-                            else_builder.append(
-                                Action::Call(
-                                    call_block_wrapper_fn.clone(),
-                                    vec![
-                                        cervus::engine::Value::from(eh as *const engine::EngineHandleImpl as u64).const_int_to_ptr(
-                                            ValueType::Pointer(Box::new(ValueType::Void))
-                                        ),
-                                        cervus::engine::Value::from(else_blk as *const engine::Block as u64).const_int_to_ptr(
-                                            ValueType::Pointer(Box::new(ValueType::Void))
-                                        ),
-                                    ]
-                                )
+                            let cont_2 = build_block_call(
+                                eh,
+                                &entry_fn,
+                                &else_builder,
+                                else_blk,
+                                false
                             );
-                            else_builder.append(Action::Branch(&cont_bb));
+                            let c2_builder = cervus::engine::Builder::new(&cont_2);
+                            c2_builder.append(Action::Branch(&cont_bb));
                         }
 
                         new_bb = Some(cont_bb);
                     },
                     &mut Operation::Loop(ref mut blk) => {
-                        let cont_bb = cervus::engine::BasicBlock::new(&entry_fn, "");
-                        let exec_bb = cervus::engine::BasicBlock::new(&entry_fn, "");
-
-                        builder.append(Action::Branch(&exec_bb));
-
-                        {
-                            let exec_builder = cervus::engine::Builder::new(&exec_bb);
-                            let ret = exec_builder.append(
-                                Action::Call(
-                                    call_block_with_control_wrapper_fn.clone(),
-                                    vec![
-                                        cervus::engine::Value::from(eh as *const engine::EngineHandleImpl as u64).const_int_to_ptr(
-                                            ValueType::Pointer(Box::new(ValueType::Void))
-                                        ),
-                                        cervus::engine::Value::from(blk as *const engine::Block as u64).const_int_to_ptr(
-                                            ValueType::Pointer(Box::new(ValueType::Void))
-                                        )
-                                    ]
-                                )
-                            );
-                            exec_builder.append(
-                                Action::ConditionalBranch(
-                                    exec_builder.append(Action::IntEqual(
-                                        ret,
-                                        cervus::engine::Value::from(1 as i32)
-                                    )),
-                                    &cont_bb,
-                                    &exec_bb
-                                )
-                            );
-                        }
-
-                        new_bb = Some(cont_bb);
+                        new_bb = Some(build_block_call(
+                            eh,
+                            &entry_fn,
+                            &builder,
+                            blk,
+                            true
+                        ));
                     },
                     &mut Operation::Break => {
-                        builder.append(Action::Call(
-                            break_wrapper_fn.clone(),
-                            vec![]
-                        ));
+                        fn_control_status = 1;
+                        break;
                     }
                 }
             }
@@ -273,14 +215,14 @@ impl engine::Block {
             }
             let builder = cervus::engine::Builder::new(&bb);
 
-            builder.append(Action::ReturnVoid);
+            builder.append(Action::Return(fn_control_status.into()));
             entry = entry_fn.to_null_handle();
         }
 
         let ee = cervus::engine::ExecutionEngine::new(m);
         ee.prepare();
 
-        let entry = ee.get_callable_0::<()>(&entry);
+        let entry = ee.get_callable_0::<i32>(&entry);
 
         let mut jit_info = BlockJitInfo {
             resources: resources,
@@ -291,6 +233,70 @@ impl engine::Block {
         self.jit_info = Some(jit_info);
         Ok(())
     }
+}
+
+fn build_block_call<'a>(
+    eh: &engine::EngineHandleImpl,
+    f: &'a cervus::engine::Function,
+    parent_builder: &cervus::engine::Builder,
+    blk: &mut engine::Block,
+    is_loop: bool
+) -> cervus::engine::BasicBlock<'a> {
+    let cont_bb = cervus::engine::BasicBlock::new(f, "");
+
+    let call_block_wrapper_fn = cervus::engine::Value::from(call_block_wrapper as *const c_void as u64)
+        .const_int_to_ptr(ValueType::Pointer(Box::new(
+            ValueType::Function(
+                Box::new(ValueType::Int32),
+                vec![
+                    ValueType::Pointer(Box::new(ValueType::Void)),
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                ]
+            )
+        )));
+
+    let bb = cervus::engine::BasicBlock::new(f, "");
+    let builder = cervus::engine::Builder::new(&bb);
+    parent_builder.append(Action::Branch(&bb));
+
+    let ret = builder.append(
+        Action::Call(
+            call_block_wrapper_fn.clone(),
+            vec![
+                cervus::engine::Value::from(eh as *const engine::EngineHandleImpl as u64).const_int_to_ptr(
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                ),
+                cervus::engine::Value::from(blk as *const engine::Block as u64).const_int_to_ptr(
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                ),
+            ]
+        )
+    );
+
+    if is_loop {
+        builder.append(
+            Action::ConditionalBranch(
+                builder.append(Action::IntEqual(ret.clone(), (1 as i32).into())), // break
+                &cont_bb,
+                &bb
+            )
+        );
+    } else {
+        let ret_bb = cervus::engine::BasicBlock::new(f, "");
+        let ret_builder = cervus::engine::Builder::new(&ret_bb);
+
+        ret_builder.append(Action::Return(ret.clone()));
+
+        builder.append(
+            Action::ConditionalBranch(
+                builder.append(Action::IntEqual(ret.clone(), (0 as i32).into())), // no control operation
+                &cont_bb,
+                &ret_bb
+            )
+        );
+    }
+
+    cont_bb
 }
 
 extern "C" fn handle_exec_wrapper(eng: &mut engine::Engine, info: &engine::ExecInfo) {
@@ -305,56 +311,6 @@ extern "C" fn handle_parallel_exec_wrapper(eng: &mut engine::Engine, info: &Vec<
     eng.handle_parallel_exec(info.as_slice()).unwrap();
 }
 
-fn unwind_on_error(e: Box<Error>) {
-    if let Some(v) = e.downcast_ref::<signals::Break>() {
-        panic!(v.clone());
-    } else if let Some(v) = e.downcast_ref::<signals::Continue>() {
-        panic!(v.clone());
-    } else {
-        panic!("Error in JIT-compiled code");
-    }
-}
-
-extern "C" fn call_block_wrapper(eng: &engine::EngineHandleImpl, blk: &mut engine::Block) {
-    match eng.eval_block(blk) {
-        Ok(_) => {},
-        Err(e) => {
-            unwind_on_error(e);
-        }
-    }
-}
-
-extern "C" fn call_block_with_control_wrapper(eng: &engine::EngineHandleImpl, blk: &mut engine::Block) -> i32 {
-    // FIXME: This is extremely unsafe.
-
-    let eng = eng as *const engine::EngineHandleImpl as *const c_void;
-    let blk = blk as *const engine::Block as *const c_void;
-
-    match std::panic::catch_unwind(|| {
-        unsafe {
-            let eng = eng as *const engine::EngineHandleImpl;
-            let blk = blk as *mut engine::Block;
-            let eng = &*eng;
-            let blk = &mut *blk;
-            match eng.eval_block(blk) {
-                Ok(_) => {},
-                Err(e) => unwind_on_error(e)
-            }
-        }
-    }) {
-        Ok(_) => 0,
-        Err(e) => {
-            if let Some(_) = e.downcast_ref::<signals::Break>() {
-                1
-            } else if let Some(_) = e.downcast_ref::<signals::Continue>() {
-                0
-            } else {
-                std::panic::resume_unwind(e);
-            }
-        }
-    }
-}
-
-extern "C" fn break_wrapper() {
-    panic!(signals::Break::new());
+extern "C" fn call_block_wrapper(eng: &engine::EngineHandleImpl, blk: &mut engine::Block) -> i32 {
+    eng.eval_block(blk)
 }

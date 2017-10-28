@@ -137,64 +137,69 @@ impl EngineHandleImpl {
         self.inner.clone()
     }
 
-    pub fn eval_block(&self, blk: &mut Block) -> Result<(), Box<Error>> {
+    pub fn eval_block(&self, blk: &mut Block) -> i32 {
         if blk.jit_info.is_some() {
             //println!("JIT HIT");
             let entry = blk.jit_info.as_ref().unwrap().entry;
-            entry();
+            entry()
         } else {
             //println!("JIT MISS");
+            let mut ret: i32 = 0;
+
             for op in blk.ops.iter_mut() {
-                self.eval_op(op)?;
+                ret = self.eval_op(op);
+                if ret != 0 {
+                    break;
+                }
             }
             blk.call_count_before_jit += 1;
             if blk.call_count_before_jit == 3 {
-                blk.build_jit(self)?;
+                blk.build_jit(self).unwrap();
             }
+            ret
         }
-        Ok(())
     }
 
-    pub fn eval_op(&self, op: &mut Operation) -> Result<(), Box<Error>> {
+    pub fn eval_op(&self, op: &mut Operation) -> i32 {
         match op {
             &mut Operation::Exec(ref info) => {
-                self.borrow_mut().handle_exec(info)?;
+                self.borrow_mut().handle_exec(info).unwrap();
+                0
             },
             &mut Operation::ParallelExec(ref info) => {
-                self.borrow_mut().handle_parallel_exec(info.as_slice())?;
+                self.borrow_mut().handle_parallel_exec(info.as_slice()).unwrap();
+                0
             },
             &mut Operation::BackgroundExec(ref info) => {
-                self.borrow_mut().handle_background_exec(info)?;
+                self.borrow_mut().handle_background_exec(info).unwrap();
+                0
             },
             &mut Operation::IfElse(ref mut if_blk, ref mut else_blk) => {
                 if self.borrow().last_exit_status == 0 {
-                    self.eval_block(else_blk)?;
+                    self.eval_block(else_blk)
                 } else {
-                    self.eval_block(if_blk)?;
+                    self.eval_block(if_blk)
                 }
             },
             &mut Operation::Loop(ref mut blk) => {
                 loop {
-                    match self.eval_block(blk) {
-                        Ok(_) => {},
-                        Err(e) => {
-                            if let Some(_) = e.downcast_ref::<signals::Break>() {
-                                break;
-                            }
-                            if let Some(_) = e.downcast_ref::<signals::Continue>() {
-                                continue;
-                            }
-                            return Err(e);
-                        }
+                    let ret = self.eval_block(blk);
+                    if ret == 0 {
+                        continue;
+                    } else if ret == 1 {
+                        break;
+                    } else if ret == 2 {
+                        continue;
+                    } else {
+                        panic!("Unexpected control status: {}", ret);
                     }
                 }
+                0
             },
             &mut Operation::Break => {
-                return Err(Box::new(signals::Break::new()));
+                1
             }
         }
-
-        Ok(())
     }
 }
 
