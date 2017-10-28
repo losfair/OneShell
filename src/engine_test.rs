@@ -6,6 +6,14 @@ fn test_engine_exec() {
 {
     "ops": [
         {
+            "AssignGlobal": [
+                "var1",
+                {
+                    "String": "Hello world"
+                }
+            ]
+        },
+        {
             "Exec": {
                 "command": ["ls", "/"],
                 "env": {},
