@@ -9,6 +9,7 @@ use cervus::engine::Action;
 use cervus::value_type::ValueType;
 use engine::Operation;
 use signals;
+use var;
 
 pub struct BlockJitInfo {
     resources: Vec<Box<Any>>,
@@ -77,7 +78,29 @@ impl engine::Block {
                     )
                 )));
 
-            resources.push(Box::new(eh.engine_rc()) as Box<Any>);
+            let handle_global_assign_fn = cervus::engine::Value::from(handle_global_assign as *const c_void as u64)
+                .const_int_to_ptr(ValueType::Pointer(Box::new(
+                    ValueType::Function(
+                        Box::new(ValueType::Void),
+                        vec![
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void))
+                        ]
+                    )
+                )));
+
+            let handle_local_assign_fn = cervus::engine::Value::from(handle_local_assign as *const c_void as u64)
+                .const_int_to_ptr(ValueType::Pointer(Box::new(
+                    ValueType::Function(
+                        Box::new(ValueType::Void),
+                        vec![
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void))
+                        ]
+                    )
+                )));
 
             let mut fn_control_status: i32 = 0;
 
@@ -89,8 +112,6 @@ impl engine::Block {
 
                 match op {
                     &mut Operation::Exec(ref info) => {
-                        let info = Box::new(info.clone());
-
                         builder.append(
                             Action::Call(
                                 handle_exec_wrapper_fn.clone(),
@@ -98,13 +119,12 @@ impl engine::Block {
                                     cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     ),
-                                    cervus::engine::Value::from(&*info as *const engine::ExecInfo as u64).const_int_to_ptr(
+                                    cervus::engine::Value::from(info as *const engine::ExecInfo as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     )
                                 ]
                             )
                         );
-                        resources.push(info as Box<Any>);
                     },
                     &mut Operation::ParallelExec(ref info) => {
                         let info = Box::new(info.to_vec());
@@ -125,8 +145,6 @@ impl engine::Block {
                         resources.push(info as Box<Any>);
                     },
                     &mut Operation::BackgroundExec(ref info) => {
-                        let info = Box::new(info.clone());
-
                         builder.append(
                             Action::Call(
                                 handle_background_exec_wrapper_fn.clone(),
@@ -134,13 +152,12 @@ impl engine::Block {
                                     cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     ),
-                                    cervus::engine::Value::from(&*info as *const engine::ExecInfo as u64).const_int_to_ptr(
+                                    cervus::engine::Value::from(info as *const engine::ExecInfo as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     )
                                 ]
                             )
                         );
-                        resources.push(info as Box<Any>);
                     },
                     &mut Operation::IfElse(ref mut if_blk, ref mut else_blk) => {
                         let last_exit_status_ptr = &eh.borrow().last_exit_status as *const i32;
@@ -206,6 +223,42 @@ impl engine::Block {
                     &mut Operation::Break => {
                         fn_control_status = 1;
                         break;
+                    },
+                    &mut Operation::AssignGlobal(ref name, ref val) => {
+                        builder.append(
+                            Action::Call(
+                                handle_global_assign_fn.clone(),
+                                vec![
+                                    cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(name as *const String as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(val as *const var::Value as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    )
+                                ]
+                            )
+                        );
+                    },
+                    &mut Operation::AssignLocal(ref name, ref val) => {
+                        builder.append(
+                            Action::Call(
+                                handle_local_assign_fn.clone(),
+                                vec![
+                                    cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(name as *const String as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(val as *const var::Value as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    )
+                                ]
+                            )
+                        );
                     }
                 }
             }
@@ -313,4 +366,18 @@ extern "C" fn handle_parallel_exec_wrapper(eng: &mut engine::Engine, info: &Vec<
 
 extern "C" fn call_block_wrapper(eng: &engine::EngineHandleImpl, blk: &mut engine::Block) -> i32 {
     eng.eval_block(blk)
+}
+
+extern "C" fn handle_global_assign(eng: &mut engine::Engine, name: &String, val: &var::Value) {
+    eng.vars.insert(
+        name.clone(),
+        var::Variable::from_value(val.clone())
+    );
+}
+
+extern "C" fn handle_local_assign(eng: &mut engine::Engine, name: &String, val: &var::Value) {
+    eng.call_stack.last_mut().unwrap().vars.insert(
+        name.clone(),
+        var::Variable::from_value(val.clone())
+    );
 }

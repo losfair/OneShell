@@ -11,6 +11,7 @@ use cervus;
 use serde_json;
 use jit;
 use signals;
+use var;
 
 // EngineHandle should never be moved as JIT-compiled code may hold reference to it.
 pub struct EngineHandle {
@@ -47,7 +48,9 @@ impl From<Engine> for EngineHandle {
 
 #[derive(Default)]
 pub struct Engine {
-    pub last_exit_status: i32
+    pub last_exit_status: i32,
+    pub call_stack: Vec<FunctionState>,
+    pub vars: HashMap<String, var::Variable>
 }
 
 #[derive(Deserialize)]
@@ -59,6 +62,10 @@ pub struct Block {
     call_count_before_jit: usize
 }
 
+pub struct FunctionState {
+    pub vars: HashMap<String, var::Variable>
+}
+
 #[derive(Deserialize)]
 pub enum Operation {
     Exec(ExecInfo),
@@ -66,7 +73,9 @@ pub enum Operation {
     BackgroundExec(ExecInfo),
     IfElse(Block, Block),
     Loop(Block),
-    Break
+    Break,
+    AssignGlobal(String, var::Value),
+    AssignLocal(String, var::Value)
 }
 
 #[derive(Deserialize, Clone)]
@@ -198,6 +207,20 @@ impl EngineHandleImpl {
             },
             &mut Operation::Break => {
                 1
+            },
+            &mut Operation::AssignGlobal(ref name, ref val) => {
+                self.borrow_mut().vars.insert(
+                    name.clone(),
+                    var::Variable::from_value(val.clone())
+                );
+                0
+            },
+            &mut Operation::AssignLocal(ref name, ref val) => {
+                self.borrow_mut().call_stack.last_mut().unwrap().vars.insert(
+                    name.clone(),
+                    var::Variable::from_value(val.clone())
+                );
+                0
             }
         }
     }

@@ -7,6 +7,7 @@ extern crate serde_derive;
 mod engine;
 mod jit;
 mod signals;
+mod var;
 
 #[cfg(test)]
 mod engine_test;
