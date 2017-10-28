@@ -240,7 +240,7 @@ impl EngineHandleImpl {
                     } else if ret == signals::CONTINUE {
                         continue;
                     } else {
-                        panic!("Unexpected control status: {}", ret);
+                        return ret;
                     }
                 }
                 signals::OK

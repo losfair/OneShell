@@ -295,6 +295,7 @@ fn build_block_call<'a>(
     blk: &mut engine::Block,
     is_loop: bool
 ) -> cervus::engine::BasicBlock<'a> {
+    let final_check_bb = cervus::engine::BasicBlock::new(f, "");
     let cont_bb = cervus::engine::BasicBlock::new(f, "");
 
     let call_block_wrapper_fn = cervus::engine::Value::from(call_block_wrapper as *const c_void as u64)
@@ -327,27 +328,48 @@ fn build_block_call<'a>(
     );
 
     if is_loop {
+        let check_continue_bb = cervus::engine::BasicBlock::new(f, "");
+        let check_continue_builder = cervus::engine::Builder::new(&check_continue_bb);
+        let check_ok_bb = cervus::engine::BasicBlock::new(f, "");
+        let check_ok_builder = cervus::engine::Builder::new(&check_ok_bb);
+        
         builder.append(
             Action::ConditionalBranch(
-                builder.append(Action::IntEqual(ret.clone(), (signals::BREAK as i32).into())), // break
+                builder.append(Action::IntEqual(ret.clone(), signals::BREAK.into())),
                 &cont_bb,
-                &bb
+                &check_continue_bb
+            )
+        );
+        check_continue_builder.append(
+            Action::ConditionalBranch(
+                check_continue_builder.append(Action::IntEqual(ret.clone(), signals::CONTINUE.into())),
+                &bb,
+                &check_ok_bb
+            )
+        );
+        check_ok_builder.append(
+            Action::ConditionalBranch(
+                check_ok_builder.append(Action::IntEqual(ret.clone(), signals::OK.into())),
+                &bb,
+                &final_check_bb
             )
         );
     } else {
-        let ret_bb = cervus::engine::BasicBlock::new(f, "");
-        let ret_builder = cervus::engine::Builder::new(&ret_bb);
-
-        ret_builder.append(Action::Return(ret.clone()));
-
-        builder.append(
-            Action::ConditionalBranch(
-                builder.append(Action::IntEqual(ret.clone(), (signals::OK as i32).into())), // no control operation
-                &cont_bb,
-                &ret_bb
-            )
-        );
+        builder.append(Action::Branch(&final_check_bb));
     }
+
+    let ret_bb = cervus::engine::BasicBlock::new(f, "");
+    let ret_builder = cervus::engine::Builder::new(&ret_bb);
+    ret_builder.append(Action::Return(ret.clone()));
+
+    let final_check_builder = cervus::engine::Builder::new(&final_check_bb);
+    final_check_builder.append(
+        Action::ConditionalBranch(
+            final_check_builder.append(Action::IntEqual(ret.clone(), signals::OK.into())),
+            &cont_bb,
+            &ret_bb
+        )
+    );
 
     cont_bb
 }
