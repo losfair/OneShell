@@ -1,7 +1,6 @@
 use std;
 use std::any::Any;
 use std::error::Error;
-use std::process::Command;
 use std::os::raw::c_void;
 use engine;
 use cervus;
@@ -12,8 +11,8 @@ use signals;
 use var;
 
 pub struct BlockJitInfo {
-    resources: Vec<Box<Any>>,
-    ee: cervus::engine::ExecutionEngine,
+    _resources: Vec<Box<Any>>,
+    _ee: cervus::engine::ExecutionEngine,
     pub entry: extern fn () -> i32
 }
 
@@ -60,17 +59,6 @@ impl engine::Block {
                 .const_int_to_ptr(ValueType::Pointer(Box::new(
                     ValueType::Function(
                         Box::new(ValueType::Void),
-                        vec![
-                            ValueType::Pointer(Box::new(ValueType::Void)),
-                            ValueType::Pointer(Box::new(ValueType::Void))
-                        ]
-                    )
-                )));
-
-            let call_block_wrapper_fn = cervus::engine::Value::from(call_block_wrapper as *const c_void as u64)
-                .const_int_to_ptr(ValueType::Pointer(Box::new(
-                    ValueType::Function(
-                        Box::new(ValueType::Int32),
                         vec![
                             ValueType::Pointer(Box::new(ValueType::Void)),
                             ValueType::Pointer(Box::new(ValueType::Void))
@@ -277,9 +265,9 @@ impl engine::Block {
 
         let entry = ee.get_callable_0::<i32>(&entry);
 
-        let mut jit_info = BlockJitInfo {
-            resources: resources,
-            ee: ee,
+        let jit_info = BlockJitInfo {
+            _resources: resources,
+            _ee: ee,
             entry: entry
         };
 

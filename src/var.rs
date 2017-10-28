@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::{RefCell, RefMut};
-use std::ops::Deref;
 
 #[derive(Deserialize, Clone)]
 pub enum Value {

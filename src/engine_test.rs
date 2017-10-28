@@ -130,9 +130,9 @@ fn test_engine_exec() {
 }
     "#;
 
-    let mut eng: engine::EngineHandle = engine::Engine::new().into();
+    let eng: engine::EngineHandle = engine::Engine::new().into();
     let mut blk = eng.borrow_mut().load_block(ast).unwrap();
-    for i in 0..5 {
+    for _ in 0..5 {
         let ret = eng.eval_block(&mut blk);
         if ret != 0 {
             panic!("Pending control status: {}", ret);
