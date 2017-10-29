@@ -25,7 +25,7 @@ fn test_engine_exec() {
                         "Plain": "/"
                     }
                 ],
-                "env": {},
+                "env": [],
                 "stdin": "Inherit",
                 "stdout": "Inherit"
             }
@@ -41,7 +41,7 @@ fn test_engine_exec() {
                             "Plain": "/"
                         }
                     ],
-                    "env": {},
+                    "env": [],
                     "stdin": "Inherit",
                     "stdout": {
                         "Pipe": "p1"
@@ -56,7 +56,7 @@ fn test_engine_exec() {
                             "Plain": "etc"
                         }
                     ],
-                    "env": {},
+                    "env": [],
                     "stdin": {
                         "Pipe": "p1"
                     },
@@ -77,7 +77,7 @@ fn test_engine_exec() {
                                     "GlobalVariable": "var1"
                                 }
                             ],
-                            "env": {},
+                            "env": [],
                             "stdin": "Inherit",
                             "stdout": "Inherit"
                         }
@@ -138,7 +138,7 @@ fn test_engine_exec() {
                                         "Plain": "Failed"
                                     }
                                 ],
-                                "env": {},
+                                "env": [],
                                 "stdin": "Inherit",
                                 "stdout": "Inherit"
                             }
@@ -157,7 +157,7 @@ fn test_engine_exec() {
                                         "Plain": "OK"
                                     }
                                 ],
-                                "env": {},
+                                "env": [],
                                 "stdin": "Inherit",
                                 "stdout": "Inherit"
                             }

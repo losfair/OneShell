@@ -93,9 +93,15 @@ pub enum Operation {
 #[derive(Deserialize, Clone)]
 pub struct ExecInfo {
     command: Vec<StringSource>,
-    env: HashMap<String, String>,
+    env: Vec<EnvInfo>,
     stdin: StdioConfig,
     stdout: StdioConfig
+}
+
+#[derive(Deserialize, Clone)]
+pub struct EnvInfo {
+    key: StringSource,
+    value: StringSource
 }
 
 #[derive(Deserialize, Clone)]
@@ -183,7 +189,14 @@ impl ExecInfo {
             });
         }
 
-        cmd.envs(&self.env);
+        for env in self.env.iter() {
+            let k = match env.key.fetch(eng) {
+                Some(v) => v,
+                None => continue
+            };
+            let v = env.value.fetch(eng).unwrap_or("".to_string());
+            cmd.env(k, v);
+        }
 
         cmd.stdin(match self.stdin {
             StdioConfig::Inherit => Stdio::inherit(),
