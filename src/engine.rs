@@ -86,7 +86,8 @@ pub enum Operation {
     AssignGlobal(String, ValueSource),
     AssignLocal(String, ValueSource),
     EngineBacktrace,
-    Print(StringSource)
+    Print(StringSource),
+    CheckEq(ValueSource, ValueSource)
 }
 
 #[derive(Deserialize, Clone)]
@@ -101,14 +102,18 @@ pub struct ExecInfo {
 pub enum StringSource {
     Plain(String),
     GlobalVariable(String),
-    LocalVariable(String)
+    LocalVariable(String),
+    Value(ValueSource),
+    Join(Vec<StringSource>)
 }
 
 #[derive(Deserialize, Clone)]
 pub enum ValueSource {
     Plain(var::Value),
     GlobalVariable(String),
-    LocalVariable(String)
+    LocalVariable(String),
+    String(Box<StringSource>),
+    LastExitStatus
 }
 
 impl StringSource {
@@ -122,6 +127,19 @@ impl StringSource {
             StringSource::LocalVariable(ref name) => match eng.call_stack.last().unwrap().vars.get(name) {
                 Some(v) => Some(v.to_string()),
                 None => None
+            },
+            StringSource::Value(ref val) => match val.fetch(eng) {
+                Some(v) => Some(v.to_string()),
+                None => None
+            },
+            StringSource::Join(ref list) => {
+                let mut ret = String::new();
+                for s in list.iter() {
+                    if let Some(v) = s.fetch(eng) {
+                        ret += v.as_str();
+                    }
+                }
+                Some(ret)
             }
         }
     }
@@ -137,6 +155,15 @@ impl ValueSource {
             },
             ValueSource::LocalVariable(ref name) => match eng.call_stack.last().unwrap().vars.get(name) {
                 Some(v) => Some(v.clone()),
+                None => None
+            },
+            ValueSource::LastExitStatus => Some(var::Variable::from_value(
+                var::Value::Integer(eng.last_exit_status as i64)
+            )),
+            ValueSource::String(ref s) => match s.fetch(eng) {
+                Some(v) => Some(var::Variable::from_value(
+                    var::Value::String(v))
+                ),
                 None => None
             }
         }
@@ -304,6 +331,10 @@ impl EngineHandleImpl {
             },
             &mut Operation::Print(ref src) => {
                 self.borrow().handle_print(src);
+                signals::OK
+            },
+            &mut Operation::CheckEq(ref left, ref right) => {
+                self.borrow_mut().handle_check_eq(left, right);
                 signals::OK
             }
         }

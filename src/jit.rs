@@ -110,6 +110,18 @@ impl engine::Block {
                     )
                 )));
 
+            let handle_check_eq_wrapper_fn = cervus::engine::Value::from(handle_check_eq_wrapper as *const c_void as u64)
+                .const_int_to_ptr(ValueType::Pointer(Box::new(
+                    ValueType::Function(
+                        Box::new(ValueType::Void),
+                        vec![
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void))
+                        ]
+                    )
+                )));
+
             let mut fn_control_status: i32 = signals::OK;
 
             for op in self.ops.iter_mut() {
@@ -294,6 +306,24 @@ impl engine::Block {
                                 ]
                             )
                         );
+                    },
+                    &mut Operation::CheckEq(ref left, ref right) => {
+                        builder.append(
+                            Action::Call(
+                                handle_check_eq_wrapper_fn.clone(),
+                                vec![
+                                    cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(left as *const engine::ValueSource as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(right as *const engine::ValueSource as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    )
+                                ]
+                            )
+                        );
                     }
                 }
             }
@@ -447,4 +477,8 @@ extern "C" fn handle_engine_backtrace_wrapper(eng: &engine::Engine) {
 
 extern "C" fn handle_print_wrapper(eng: &engine::Engine, src: &engine::StringSource) {
     eng.handle_print(src);
+}
+
+extern "C" fn handle_check_eq_wrapper(eng: &mut engine::Engine, left: &engine::ValueSource, right: &engine::ValueSource) {
+    eng.handle_check_eq(left, right);
 }
