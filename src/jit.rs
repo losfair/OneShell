@@ -90,6 +90,27 @@ impl engine::Block {
                     )
                 )));
 
+            let handle_engine_backtrace_wrapper_fn = cervus::engine::Value::from(handle_engine_backtrace_wrapper as *const c_void as u64)
+                .const_int_to_ptr(ValueType::Pointer(Box::new(
+                    ValueType::Function(
+                        Box::new(ValueType::Void),
+                        vec![
+                            ValueType::Pointer(Box::new(ValueType::Void))
+                        ]
+                    )
+                )));
+
+            let handle_print_wrapper_fn = cervus::engine::Value::from(handle_print_wrapper as *const c_void as u64)
+                .const_int_to_ptr(ValueType::Pointer(Box::new(
+                    ValueType::Function(
+                        Box::new(ValueType::Void),
+                        vec![
+                            ValueType::Pointer(Box::new(ValueType::Void)),
+                            ValueType::Pointer(Box::new(ValueType::Void))
+                        ]
+                    )
+                )));
+
             let mut fn_control_status: i32 = signals::OK;
 
             for op in self.ops.iter_mut() {
@@ -247,6 +268,33 @@ impl engine::Block {
                                 ]
                             )
                         );
+                    },
+                    &mut Operation::EngineBacktrace => {
+                        builder.append(
+                            Action::Call(
+                                handle_engine_backtrace_wrapper_fn.clone(),
+                                vec![
+                                    cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    )
+                                ]
+                            )
+                        );
+                    },
+                    &mut Operation::Print(ref src) => {
+                        builder.append(
+                            Action::Call(
+                                handle_print_wrapper_fn.clone(),
+                                vec![
+                                    cervus::engine::Value::from(&*eh.borrow() as *const engine::Engine as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    ),
+                                    cervus::engine::Value::from(src as *const engine::StringSource as u64).const_int_to_ptr(
+                                        ValueType::Pointer(Box::new(ValueType::Void))
+                                    )
+                                ]
+                            )
+                        );
                     }
                 }
             }
@@ -390,4 +438,12 @@ extern "C" fn handle_local_assign(eng: &mut engine::Engine, name: &String, val: 
         name.clone(),
         var::Variable::from_value(val.clone())
     );
+}
+
+extern "C" fn handle_engine_backtrace_wrapper(eng: &engine::Engine) {
+    eng.handle_engine_backtrace();
+}
+
+extern "C" fn handle_print_wrapper(eng: &engine::Engine, src: &engine::StringSource) {
+    eng.handle_print(src);
 }

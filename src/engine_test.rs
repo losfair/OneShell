@@ -80,6 +80,12 @@ fn test_engine_exec() {
                             "stdout": "Inherit"
                         }
                     },
+                    "EngineBacktrace",
+                    {
+                        "Print": {
+                            "Plain": "Backtrace printed"
+                        }
+                    },
                     "Break"
                 ]
             }

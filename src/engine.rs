@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 use std::error::Error;
 use std::ops::Deref;
 use serde_json;
+use backtrace;
 use jit;
 use signals;
 use var;
@@ -60,11 +61,21 @@ pub struct Block {
     call_count_before_jit: usize
 }
 
+impl Clone for Block {
+    fn clone(&self) -> Block {
+        Block {
+            ops: self.ops.clone(),
+            jit_info: None,
+            call_count_before_jit: 0
+        }
+    }
+}
+
 pub struct FunctionState {
     pub vars: HashMap<String, var::Variable>
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum Operation {
     Exec(ExecInfo),
     ParallelExec(Vec<ExecInfo>),
@@ -73,7 +84,9 @@ pub enum Operation {
     Loop(Block),
     Break,
     AssignGlobal(String, var::Value),
-    AssignLocal(String, var::Value)
+    AssignLocal(String, var::Value),
+    EngineBacktrace,
+    Print(StringSource)
 }
 
 #[derive(Deserialize, Clone)]
@@ -259,6 +272,14 @@ impl EngineHandleImpl {
                     var::Variable::from_value(val.clone())
                 );
                 signals::OK
+            },
+            &mut Operation::EngineBacktrace => {
+                self.borrow().handle_engine_backtrace();
+                signals::OK
+            },
+            &mut Operation::Print(ref src) => {
+                self.borrow().handle_print(src);
+                signals::OK
             }
         }
     }
@@ -347,5 +368,17 @@ impl Engine {
         }
 
         Ok(())
+    }
+
+    pub fn handle_print(&self, src: &StringSource) {
+        println!("{}", match src.fetch(self) {
+            Some(v) => v,
+            None => "(undefined)".to_string()
+        });
+    }
+
+    pub fn handle_engine_backtrace(&self) {
+        let bt = backtrace::Backtrace::new();
+        println!("{:?}", bt);
     }
 }
