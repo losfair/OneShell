@@ -9,7 +9,9 @@ fn test_engine_exec() {
             "AssignGlobal": [
                 "var1",
                 {
-                    "String": "Hello world"
+                    "Plain": {
+                        "String": "Hello world"
+                    }
                 }
             ]
         },
