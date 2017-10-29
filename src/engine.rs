@@ -83,8 +83,8 @@ pub enum Operation {
     IfElse(Block, Block),
     Loop(Block),
     Break,
-    AssignGlobal(String, var::Value),
-    AssignLocal(String, var::Value),
+    AssignGlobal(String, ValueSource),
+    AssignLocal(String, ValueSource),
     EngineBacktrace,
     Print(StringSource)
 }
@@ -104,6 +104,13 @@ pub enum StringSource {
     LocalVariable(String)
 }
 
+#[derive(Deserialize, Clone)]
+pub enum ValueSource {
+    Plain(var::Value),
+    GlobalVariable(String),
+    LocalVariable(String)
+}
+
 impl StringSource {
     pub fn fetch(&self, eng: &Engine) -> Option<String> {
         match *self {
@@ -114,6 +121,22 @@ impl StringSource {
             },
             StringSource::LocalVariable(ref name) => match eng.call_stack.last().unwrap().vars.get(name) {
                 Some(v) => Some(v.to_string()),
+                None => None
+            }
+        }
+    }
+}
+
+impl ValueSource {
+    pub fn fetch(&self, eng: &Engine) -> Option<var::Variable> {
+        match *self {
+            ValueSource::Plain(ref v) => Some(var::Variable::from_value(v.clone())),
+            ValueSource::GlobalVariable(ref name) => match eng.vars.get(name) {
+                Some(v) => Some(v.clone()),
+                None => None
+            },
+            ValueSource::LocalVariable(ref name) => match eng.call_stack.last().unwrap().vars.get(name) {
+                Some(v) => Some(v.clone()),
                 None => None
             }
         }
@@ -260,16 +283,18 @@ impl EngineHandleImpl {
                 signals::BREAK
             },
             &mut Operation::AssignGlobal(ref name, ref val) => {
+                let v = val.fetch(&*self.borrow()).unwrap();
                 self.borrow_mut().vars.insert(
                     name.clone(),
-                    var::Variable::from_value(val.clone())
+                    v
                 );
                 signals::OK
             },
             &mut Operation::AssignLocal(ref name, ref val) => {
+                let v = val.fetch(&*self.borrow()).unwrap();
                 self.borrow_mut().call_stack.last_mut().unwrap().vars.insert(
                     name.clone(),
-                    var::Variable::from_value(val.clone())
+                    v
                 );
                 signals::OK
             },
@@ -376,5 +401,16 @@ impl Engine {
     pub fn handle_engine_backtrace(&self) {
         let bt = backtrace::Backtrace::new();
         println!("{:?}", bt);
+    }
+
+    pub fn handle_check_eq(&mut self, left: &ValueSource, right: &ValueSource) {
+        let left_v = left.fetch(self).unwrap();
+        let right_v = right.fetch(self).unwrap();
+
+        self.last_exit_status = if left_v.impl_ref().value == right_v.impl_ref().value {
+            1
+        } else {
+            0
+        };
     }
 }

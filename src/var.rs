@@ -1,7 +1,7 @@
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{RefCell, Ref, RefMut};
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 pub enum Value {
     Null,
     Integer(i64),
@@ -36,6 +36,10 @@ impl Variable {
                 value: val
             }))
         }
+    }
+
+    pub fn impl_ref(&self) -> Ref<VariableImpl> {
+        self.inner.borrow()
     }
 
     pub fn impl_ref_mut(&self) -> RefMut<VariableImpl> {

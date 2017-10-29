@@ -8,7 +8,6 @@ use cervus::engine::Action;
 use cervus::value_type::ValueType;
 use engine::Operation;
 use signals;
-use var;
 
 pub struct BlockJitInfo {
     _resources: Vec<Box<Any>>,
@@ -244,7 +243,7 @@ impl engine::Block {
                                     cervus::engine::Value::from(name as *const String as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     ),
-                                    cervus::engine::Value::from(val as *const var::Value as u64).const_int_to_ptr(
+                                    cervus::engine::Value::from(val as *const engine::ValueSource as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     )
                                 ]
@@ -262,7 +261,7 @@ impl engine::Block {
                                     cervus::engine::Value::from(name as *const String as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     ),
-                                    cervus::engine::Value::from(val as *const var::Value as u64).const_int_to_ptr(
+                                    cervus::engine::Value::from(val as *const engine::ValueSource as u64).const_int_to_ptr(
                                         ValueType::Pointer(Box::new(ValueType::Void))
                                     )
                                 ]
@@ -426,17 +425,19 @@ extern "C" fn call_block_wrapper(eng: &engine::EngineHandleImpl, blk: &mut engin
     eng.eval_block(blk)
 }
 
-extern "C" fn handle_global_assign(eng: &mut engine::Engine, name: &String, val: &var::Value) {
+extern "C" fn handle_global_assign(eng: &mut engine::Engine, name: &String, val: &engine::ValueSource) {
+    let v = val.fetch(eng).unwrap();
     eng.vars.insert(
         name.clone(),
-        var::Variable::from_value(val.clone())
+        v
     );
 }
 
-extern "C" fn handle_local_assign(eng: &mut engine::Engine, name: &String, val: &var::Value) {
+extern "C" fn handle_local_assign(eng: &mut engine::Engine, name: &String, val: &engine::ValueSource) {
+    let v = val.fetch(eng).unwrap();
     eng.call_stack.last_mut().unwrap().vars.insert(
         name.clone(),
-        var::Variable::from_value(val.clone())
+        v
     );
 }
 
