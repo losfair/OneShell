@@ -52,6 +52,24 @@ pub struct Engine {
     pub vars: HashMap<String, var::Variable>
 }
 
+impl Clone for Engine {
+    fn clone(&self) -> Engine {
+        let mut new_vars: HashMap<String, var::Variable> = HashMap::new();
+        for (k, v) in self.vars.iter() {
+            new_vars.insert(
+                k.clone(),
+                v.deep_clone()
+            );
+        }
+
+        Engine {
+            last_exit_status: self.last_exit_status,
+            call_stack: self.call_stack.iter().map(|v| v.deep_clone()).collect(),
+            vars: new_vars
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct Block {
     pub ops: Vec<Operation>,
@@ -73,6 +91,21 @@ impl Clone for Block {
 
 pub struct FunctionState {
     pub vars: HashMap<String, var::Variable>
+}
+
+impl FunctionState {
+    fn deep_clone(&self) -> FunctionState {
+        let mut new_vars: HashMap<String, var::Variable> = HashMap::new();
+        for (k, v) in self.vars.iter() {
+            new_vars.insert(
+                k.clone(),
+                v.deep_clone()
+            );
+        }
+        FunctionState {
+            vars: new_vars
+        }
+    }
 }
 
 #[derive(Deserialize, Clone)]

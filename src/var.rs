@@ -49,4 +49,8 @@ impl Variable {
     pub fn to_string(&self) -> String {
         self.inner.borrow().value.to_string()
     }
+
+    pub fn deep_clone(&self) -> Variable {
+        Variable::from_value(self.inner.borrow().value.clone())
+    }
 }
