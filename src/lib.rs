@@ -8,6 +8,7 @@ pub mod engine;
 pub mod jit;
 pub mod signals;
 pub mod var;
+pub mod api;
 
 #[cfg(test)]
 mod engine_test;
