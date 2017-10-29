@@ -18,6 +18,13 @@ pub extern "C" fn oneshell_engine_destroy(eng: *mut engine::EngineHandle) {
 }
 
 #[no_mangle]
+pub extern "C" fn oneshell_engine_clone(eng: &engine::EngineHandle) -> *mut engine::EngineHandle {
+    Box::into_raw(Box::new(engine::EngineHandle::from(
+        eng.borrow().clone()
+    )))
+}
+
+#[no_mangle]
 pub extern "C" fn oneshell_load_block(ast: *const c_char) -> *mut engine::Block {
     let ast = unsafe {
         CStr::from_ptr(ast).to_str().unwrap()
