@@ -324,6 +324,16 @@ impl engine::Block {
                                 ]
                             )
                         );
+                    },
+                    &mut Operation::Call(ref target) => {
+                        new_bb = Some(
+                            build_function_call(
+                                eh,
+                                &entry_fn,
+                                &builder,
+                                target
+                            )
+                        );
                     }
                 }
             }
@@ -353,6 +363,70 @@ impl engine::Block {
     }
 }
 
+fn build_final_check<'a>(
+    f: &'a cervus::engine::Function,
+    val: &cervus::engine::Value,
+    cont_bb: &cervus::engine::BasicBlock
+) -> cervus::engine::BasicBlock<'a> {
+    let ret_bb = cervus::engine::BasicBlock::new(f, "");
+    let ret_builder = cervus::engine::Builder::new(&ret_bb);
+    ret_builder.append(Action::Return(val.clone()));
+
+    let final_check_bb = cervus::engine::BasicBlock::new(f, "");
+
+    {
+        let final_check_builder = cervus::engine::Builder::new(&final_check_bb);
+        final_check_builder.append(
+            Action::ConditionalBranch(
+                final_check_builder.append(Action::IntEqual(val.clone(), signals::OK.into())),
+                cont_bb,
+                &ret_bb
+            )
+        );
+    }
+
+    final_check_bb
+}
+
+fn build_function_call<'a>(
+    eh: &engine::EngineHandleImpl,
+    f: &'a cervus::engine::Function,
+    builder: &cervus::engine::Builder,
+    target: &engine::ValueSource
+) -> cervus::engine::BasicBlock<'a> {
+    let wrapper_fn = cervus::engine::Value::from(call_function_wrapper as *const c_void as u64)
+        .const_int_to_ptr(ValueType::Pointer(Box::new(
+            ValueType::Function(
+                Box::new(ValueType::Int32),
+                vec![
+                    ValueType::Pointer(Box::new(ValueType::Void)),
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                ]
+            )
+        )));
+
+    let ret = builder.append(
+        Action::Call(
+            wrapper_fn,
+            vec![
+                cervus::engine::Value::from(eh as *const engine::EngineHandleImpl as u64).const_int_to_ptr(
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                ),
+                cervus::engine::Value::from(target as *const engine::ValueSource as u64).const_int_to_ptr(
+                    ValueType::Pointer(Box::new(ValueType::Void))
+                )
+            ]
+        )
+    );
+
+    let cont_bb = cervus::engine::BasicBlock::new(f, "");
+
+    let fc_bb = build_final_check(f, &ret, &cont_bb);
+    builder.append(Action::Branch(&fc_bb));
+
+    cont_bb
+}
+
 fn build_block_call<'a>(
     eh: &engine::EngineHandleImpl,
     f: &'a cervus::engine::Function,
@@ -360,7 +434,6 @@ fn build_block_call<'a>(
     blk: &mut engine::Block,
     is_loop: bool
 ) -> cervus::engine::BasicBlock<'a> {
-    let final_check_bb = cervus::engine::BasicBlock::new(f, "");
     let cont_bb = cervus::engine::BasicBlock::new(f, "");
 
     let call_block_wrapper_fn = cervus::engine::Value::from(call_block_wrapper as *const c_void as u64)
@@ -392,6 +465,8 @@ fn build_block_call<'a>(
         )
     );
 
+    let final_check_bb = build_final_check(f, &ret, &cont_bb);
+
     if is_loop {
         let check_continue_bb = cervus::engine::BasicBlock::new(f, "");
         let check_continue_builder = cervus::engine::Builder::new(&check_continue_bb);
@@ -422,19 +497,6 @@ fn build_block_call<'a>(
     } else {
         builder.append(Action::Branch(&final_check_bb));
     }
-
-    let ret_bb = cervus::engine::BasicBlock::new(f, "");
-    let ret_builder = cervus::engine::Builder::new(&ret_bb);
-    ret_builder.append(Action::Return(ret.clone()));
-
-    let final_check_builder = cervus::engine::Builder::new(&final_check_bb);
-    final_check_builder.append(
-        Action::ConditionalBranch(
-            final_check_builder.append(Action::IntEqual(ret.clone(), signals::OK.into())),
-            &cont_bb,
-            &ret_bb
-        )
-    );
 
     cont_bb
 }
@@ -481,4 +543,17 @@ extern "C" fn handle_print_wrapper(eng: &engine::Engine, src: &engine::StringSou
 
 extern "C" fn handle_check_eq_wrapper(eng: &mut engine::Engine, left: &engine::ValueSource, right: &engine::ValueSource) {
     eng.handle_check_eq(left, right);
+}
+
+extern "C" fn call_function_wrapper(eng: &engine::EngineHandleImpl, target: &engine::ValueSource) -> i32 {
+    let f = target.fetch(&*eng.borrow());
+
+    if let Some(f) = f {
+        match f.call(eng) {
+            Ok(_) => signals::OK,
+            Err(_) => signals::EXCEPTION
+        }
+    } else {
+        signals::EXCEPTION
+    }
 }

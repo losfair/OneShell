@@ -2,7 +2,7 @@ use std;
 use std::os::raw::c_void;
 use std::error::Error;
 use std::rc::Rc;
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::{RefCell, Ref};
 use engine;
 use signals;
 
@@ -49,10 +49,6 @@ impl Variable {
         self.inner.borrow()
     }
 
-    pub fn impl_ref_mut(&self) -> RefMut<VariableImpl> {
-        self.inner.borrow_mut()
-    }
-
     pub fn to_string(&self) -> String {
         self.inner.borrow().value.to_string()
     }
@@ -62,15 +58,15 @@ impl Variable {
     }
 
     // FIXME: Extremely unsafe code
-    pub fn call(&self, eng: &engine::EngineHandle) -> Result<(), Box<Error>> {
+    pub fn call(&self, eng: &engine::EngineHandleImpl) -> Result<(), Box<Error>> {
         if let Value::Function(ref blk) = self.inner.borrow().value {
             eng.borrow_mut().call_stack.push(Box::new(engine::FunctionState::new()));
 
-            let _eng = eng as *const engine::EngineHandle as *const c_void;
+            let _eng = eng as *const engine::EngineHandleImpl as *const c_void;
             let blk = blk as *const engine::Block as *const c_void;
 
             let ret = match std::panic::catch_unwind(|| {
-                let eng = unsafe { &*(_eng as *const engine::EngineHandle) };
+                let eng = unsafe { &*(_eng as *const engine::EngineHandleImpl) };
                 let blk = unsafe { &mut *(blk as *mut engine::Block) };
 
                 eng.eval_block(blk)

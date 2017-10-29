@@ -140,7 +140,8 @@ pub enum Operation {
     AssignLocal(String, ValueSource),
     EngineBacktrace,
     Print(StringSource),
-    CheckEq(ValueSource, ValueSource)
+    CheckEq(ValueSource, ValueSource),
+    Call(ValueSource)
 }
 
 #[derive(Deserialize, Clone)]
@@ -402,6 +403,17 @@ impl EngineHandleImpl {
             &mut Operation::CheckEq(ref left, ref right) => {
                 self.borrow_mut().handle_check_eq(left, right);
                 signals::OK
+            },
+            &mut Operation::Call(ref target) => {
+                let f = target.fetch(&*self.borrow());
+                if let Some(f) = f {
+                    match f.call(self) {
+                        Ok(_) => signals::OK,
+                        Err(_) => signals::EXCEPTION
+                    }
+                } else {
+                    signals::EXCEPTION
+                }
             }
         }
     }

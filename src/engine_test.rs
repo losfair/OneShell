@@ -113,6 +113,29 @@ fn test_engine_exec() {
             ]
         },
         {
+            "AssignGlobal": [
+                "test_function",
+                {
+                    "Plain": {
+                        "Function": {
+                            "ops": [
+                                {
+                                    "Print": {
+                                        "Plain": "In function!"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "Call": {
+                "GlobalVariable": "test_function"
+            }
+        },
+        {
             "Print": {
                 "Join": [
                     {
