@@ -300,14 +300,7 @@ impl Engine {
     }
 
     pub fn handle_exec(&mut self, info: &ExecInfo) -> Result<(), Box<Error>> {
-        let mut cmd = info.build(self)?;
-
-        let mut child = cmd.spawn()?;
-        let exit_status = child.wait()?;
-
-        self.last_exit_status = exit_status.code().unwrap_or(-1);
-
-        Ok(())
+        self.handle_parallel_exec(&[info])
     }
 
     pub fn handle_background_exec(&self, info: &ExecInfo) -> Result<(), Box<Error>> {
@@ -324,11 +317,14 @@ impl Engine {
         Ok(())
     }
 
-    pub fn handle_parallel_exec(&mut self, info: &[ExecInfo]) -> Result<(), Box<Error>> {
+    pub fn handle_parallel_exec<T>(&mut self, info: &[T]) -> Result<(), Box<Error>>
+        where T: std::borrow::Borrow<ExecInfo>
+    {
         let mut stdout_pipes: HashMap<String, Option<std::process::ChildStdout>> = HashMap::new();
 
         let mut children = Vec::new();
         for item in info.iter() {
+            let item = item.borrow();
             let mut cmd: Command = item.build(self)?;
             let mut child = cmd.spawn()?;
 
