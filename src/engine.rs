@@ -269,8 +269,9 @@ impl Engine {
         Engine::default()
     }
 
-    pub fn load_block(&mut self, ast: &str) -> Result<Block, Box<Error>> {
-        Ok(serde_json::from_str(ast)?)
+    // Block must be boxed to prevent move
+    pub fn load_block(ast: &str) -> Result<Box<Block>, Box<Error>> {
+        Ok(Box::new(serde_json::from_str(ast)?))
     }
 
     pub fn get_last_exit_status(&self) -> i32 {

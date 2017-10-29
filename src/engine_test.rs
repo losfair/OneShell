@@ -131,7 +131,7 @@ fn test_engine_exec() {
     "#;
 
     let eng: engine::EngineHandle = engine::Engine::new().into();
-    let mut blk = eng.borrow_mut().load_block(ast).unwrap();
+    let mut blk = engine::Engine::load_block(ast).unwrap();
     for _ in 0..5 {
         let ret = eng.eval_block(&mut blk);
         if ret != 0 {
