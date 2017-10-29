@@ -12,11 +12,12 @@ use jit;
 use signals;
 use var;
 
-// EngineHandle should never be moved as JIT-compiled code may hold reference to it.
+#[derive(Clone)]
 pub struct EngineHandle {
     inner: Box<EngineHandleImpl>
 }
 
+#[derive(Clone)]
 pub struct EngineHandleImpl {
     inner: Rc<RefCell<Engine>>
 }
@@ -48,7 +49,8 @@ impl From<Engine> for EngineHandle {
 #[derive(Default)]
 pub struct Engine {
     pub last_exit_status: i32,
-    pub call_stack: Vec<FunctionState>,
+    pub last_return_value: Option<var::Variable>,
+    pub call_stack: Vec<Box<FunctionState>>,
     pub vars: HashMap<String, var::Variable>
 }
 
@@ -62,9 +64,15 @@ impl Clone for Engine {
             );
         }
 
+        let last_return_value = match self.last_return_value {
+            Some(ref v) => Some(v.deep_clone()),
+            None => None
+        };
+
         Engine {
             last_exit_status: self.last_exit_status,
-            call_stack: self.call_stack.iter().map(|v| v.deep_clone()).collect(),
+            last_return_value: last_return_value,
+            call_stack: self.call_stack.iter().map(|v| Box::new(v.deep_clone())).collect(),
             vars: new_vars
         }
     }
@@ -77,6 +85,12 @@ pub struct Block {
     pub jit_info: Option<jit::BlockJitInfo>,
     #[serde(skip)]
     call_count_before_jit: usize
+}
+
+impl PartialEq for Block {
+    fn eq(&self, _: &Block) -> bool {
+        false
+    }
 }
 
 impl Clone for Block {
@@ -94,7 +108,13 @@ pub struct FunctionState {
 }
 
 impl FunctionState {
-    fn deep_clone(&self) -> FunctionState {
+    pub fn new() -> FunctionState {
+        FunctionState {
+            vars: HashMap::new()
+        }
+    }
+
+    pub fn deep_clone(&self) -> FunctionState {
         let mut new_vars: HashMap<String, var::Variable> = HashMap::new();
         for (k, v) in self.vars.iter() {
             new_vars.insert(
