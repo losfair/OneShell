@@ -93,6 +93,38 @@ fn test_engine_exec() {
             }
         },
         {
+            "CheckEq": [
+                {
+                    "Plain": {
+                        "Integer": 42
+                    }
+                },
+                {
+                    "Plain": {
+                        "Integer": 42
+                    }
+                }
+            ]
+        },
+        {
+            "AssignGlobal": [
+                "cmp_result",
+                "LastExitStatus"
+            ]
+        },
+        {
+            "Print": {
+                "Join": [
+                    {
+                        "Plain": "Compare result is "
+                    },
+                    {
+                        "GlobalVariable": "cmp_result"
+                    }
+                ]
+            }
+        },
+        {
             "IfElse": [
                 {
                     "ops": [
